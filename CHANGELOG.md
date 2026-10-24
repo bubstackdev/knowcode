@@ -4,6 +4,13 @@ KnowCode follows [Semantic Versioning](https://semver.org/) and stays on 0.x whi
 
 ## Unreleased
 
+- Indexing several repos at once no longer spends most of its time in the kernel. SQLite was built with one page
+  cache and one allocation counter for the whole process, each behind a global lock, and every connection's page
+  fetches and allocations took them. Each connection now has its own page cache, and allocations aren't counted. On
+  a workspace of 111 public repos, `index --workspace` used 114 s of user and 355 s of system CPU and 1,236 G
+  instructions before, and 75 s user, 36 s system and 949 G instructions after (one run each on a loaded machine).
+  The server no longer sets SQLite's 4 MiB process-wide soft memory limit: it needs that counting, and each
+  connection's page cache is still bounded by its own size.
 - `index` walks the history for the areas beside the file ranking instead of after it. The walk is a `git log` child
   that needs nothing from the ranking; on a repo with a long history it ran alone for most of a cold `index`. On a
   public TypeScript password manager client (8,177 files), a cold `index` took 19.4 to 20.7 s instead of 26.9 to

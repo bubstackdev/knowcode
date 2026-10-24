@@ -475,16 +475,6 @@ pub struct FileRecord<'a> {
     pub facts: &'a FileFacts,
 }
 
-/// Asks SQLite to keep its memory (mostly page caches) under `bytes` across every connection in the process, by
-/// recycling cached pages. The MCP server sets it: its calls open many indexes, and pages the allocator handed out
-/// stay resident after the connections close.
-pub fn limit_sqlite_memory(bytes: i64) {
-    // SAFETY: sqlite3_soft_heap_limit64 only sets a process-wide limit; it is safe to call at any time.
-    unsafe {
-        rusqlite::ffi::sqlite3_soft_heap_limit64(bytes);
-    }
-}
-
 /// A repo's index. Reads made through [`Store::conn`] while a snapshot is held (see [`Store::begin_snapshot`]) all see
 /// one committed state of the index, whatever another process writes meanwhile.
 pub struct Store {
@@ -1412,6 +1402,17 @@ pub fn name_tokens(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sqlite_has_no_process_wide_locks() {
+        // Built as .cargo/config.toml says: a page cache per connection, allocations not counted. Without it,
+        // concurrent indexing waits on two global mutexes.
+        let conn = Connection::open_in_memory().unwrap();
+        let options: Vec<String> =
+            conn.prepare("PRAGMA compile_options").unwrap().query_map([], |r| r.get(0)).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+        assert!(!options.iter().any(|o| o == "ENABLE_MEMORY_MANAGEMENT"), "{options:?}");
+        assert!(options.iter().any(|o| o == "DEFAULT_MEMSTATUS=0"), "{options:?}");
+    }
 
     #[test]
     fn concurrent_opens_of_a_new_index_keep_its_schema() {

@@ -1,0 +1,8 @@
+[env]
+# How the bundled SQLite is built (read by libsqlite3-sys's build script). rusqlite's defaults keep one page cache
+# and one allocation counter for the whole process, each behind a global mutex: every page fetched and every
+# allocation of every connection took them. With several repos indexing at once those mutexes cost more system time
+# than the work's own user time (an `index` of a 111-repo workspace with one thread per repo: 341 s system, 114 s
+# user). Each connection keeps its own page cache (its `cache_size`), and allocations aren't counted.
+# `kc_store::tests::sqlite_has_no_process_wide_locks` checks the build.
+LIBSQLITE3_FLAGS = "-USQLITE_ENABLE_MEMORY_MANAGEMENT -DSQLITE_DEFAULT_MEMSTATUS=0"

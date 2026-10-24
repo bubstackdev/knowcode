@@ -33,8 +33,6 @@ const DEFAULT_CHARS: usize = 8_000;
 const CONTEXT_CHARS: usize = 6_000;
 const MAX_CHARS: usize = 40_000;
 
-/// SQLite's memory budget in the server, across all connections.
-const SQLITE_MEMORY: i64 = 4 << 20;
 
 
 // Parameter docs are the schema's descriptions, advertised with every tool: one short line each. The details are in
@@ -2325,7 +2323,8 @@ pub fn serve(default: Scope, tools: &str) -> anyhow::Result<()> {
     let server = KnowcodeServer::new(default, tools).map_err(anyhow::Error::msg)?;
     kc_index::light::discover_roots()?;
     crate::refresh::start();
-    kc_store::limit_sqlite_memory(SQLITE_MEMORY);
+    // No process-wide SQLite memory limit: SQLite is built without the counting it needs (see .cargo/config.toml).
+    // Each connection's page cache is bounded by its `cache_size`, and `release_memory` hands freed pages back.
     // Stdin and stdout each hold a blocking thread; the others run tool work, one per lane (see `WORK`).
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(1).max_blocking_threads(5).enable_all().build()?;
     rt.block_on(async move {
